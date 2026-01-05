@@ -160,7 +160,7 @@ export default function ClinicDetail() {
             {clinic.photos.map((img, i) => (
               <img
                 key={i}
-                src={`http://localhost:5000${img}`}
+                src={`https://clinix-5qt7.onrender.com${img}`}
                 alt="Clinic"
                 className="w-40 h-40 object-cover rounded-xl"
               />

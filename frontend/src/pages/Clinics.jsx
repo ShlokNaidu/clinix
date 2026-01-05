@@ -45,7 +45,7 @@ export default function Clinics() {
             {/* IMAGE COVER */}
             {c.photos?.length > 0 && (
               <img
-                src={`http://localhost:5000${c.photos[0]}`}
+                src={`https://clinix-5qt7.onrender.com${c.photos[0]}`}
                 alt="Clinic"
                 className="w-full h-48 object-cover rounded-xl"
               />
