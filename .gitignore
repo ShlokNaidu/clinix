@@ -9,3 +9,6 @@ frontend/node_modules/
 # build
 dist/
 build/
+
+server/uploads/
+uploads/
