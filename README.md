@@ -97,7 +97,6 @@ The system uses automation and AI responsibly — not to diagnose or treat — b
 - JWT (authentication)
 
 ### AI & CLOUD
-
 -Gemini and Groq
 -Google Maps API
 -Firebase & Render
