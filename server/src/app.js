@@ -22,7 +22,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/clinics", clinicRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/ai", aiRoutes);
-app.use("/uploads", express.static("uploads"));
+
 app.get("/", (req, res) => {
   res.send("Clinix API running");
 });

@@ -24,7 +24,9 @@ router.post(
           end: req.body.endTime
         },
         doctor: req.user.id,
-        photos: req.file ? [`/uploads/${req.file.filename}`] : []
+
+        photos: req.file ? [req.file.path] : [] // for cloudinary support change 
+
       });
 
       res.json(clinic);
