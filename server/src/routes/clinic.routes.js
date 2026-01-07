@@ -6,6 +6,9 @@ import cloudinary from "../config/cloudinary.js";
 
 const router = express.Router();
 
+/* =========================
+   CREATE CLINIC (DOCTOR)
+========================= */
 router.post(
   "/",
   protect(["doctor"]),
@@ -35,12 +38,45 @@ router.post(
         photos
       });
 
-      res.json(clinic);
+      res.status(201).json(clinic);
     } catch (err) {
       console.error("CREATE CLINIC ERROR:", err);
       res.status(500).json({ message: "Failed to create clinic" });
     }
   }
 );
+
+/* =========================
+   GET ALL CLINICS (PUBLIC)
+========================= */
+router.get("/", async (req, res) => {
+  try {
+    const clinics = await Clinic.find()
+      .populate("doctor", "name email");
+
+    res.json(clinics);
+  } catch (err) {
+    console.error("FETCH CLINICS ERROR:", err);
+    res.status(500).json({ message: "Failed to fetch clinics" });
+  }
+});
+
+/* =========================
+   GET SINGLE CLINIC
+========================= */
+router.get("/:id", async (req, res) => {
+  try {
+    const clinic = await Clinic.findById(req.params.id)
+      .populate("doctor", "name email");
+
+    if (!clinic) {
+      return res.status(404).json({ message: "Clinic not found" });
+    }
+
+    res.json(clinic);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch clinic" });
+  }
+});
 
 export default router;
