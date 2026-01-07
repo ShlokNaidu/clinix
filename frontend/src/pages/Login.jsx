@@ -2,26 +2,44 @@ import { useState } from "react";
 import api from "../api/axios";
 import { useAuth } from "../auth/AuthContext";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      toast.error("Please enter email and password");
+      return;
+    }
+
     try {
-      const res = await api.post("/auth/login", { email, password });
+      setLoading(true);
+
+      const res = await api.post("/auth/login", {
+        email,
+        password
+      });
 
       login(res.data.token, res.data.role);
 
       if (res.data.role === "doctor") {
         localStorage.setItem("doctorToken", res.data.token);
+        navigate("/doctor/dashboard");
+      } else {
+        navigate("/");
       }
-
-      navigate("/doctor/dashboard");
     } catch (err) {
-      alert(err.response?.data?.message || "Login failed");
+      toast.error(
+        err.response?.data?.message || "Login failed"
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,9 +85,17 @@ export default function Login() {
         {/* LOGIN BUTTON */}
         <button
           onClick={handleLogin}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition flex items-center justify-center disabled:opacity-60"
         >
-          Login
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              Logging in...
+            </span>
+          ) : (
+            "Login"
+          )}
         </button>
 
         {/* FOOTER */}

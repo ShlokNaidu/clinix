@@ -1,14 +1,30 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-
 import "./index.css";
 
+import { LoadingProvider } from "./context/LoadingContext";
+import GlobalLoader from "./components/GlobalLoader";
+import { bindGlobalLoader } from "./api/axios";
+import { useLoading } from "./context/LoadingContext";
 
-import { Toaster } from "react-hot-toast";
+/* 🔌 Helper component to bind loader */
+function LoaderBinder() {
+  const { setLoading } = useLoading();
+
+  React.useEffect(() => {
+    bindGlobalLoader(setLoading);
+  }, [setLoading]);
+
+  return null;
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <Toaster position="top-right" reverseOrder={false} />
-    <App />
+    <LoadingProvider>
+      <LoaderBinder />
+      <GlobalLoader />
+      <App />
+    </LoadingProvider>
   </React.StrictMode>
 );

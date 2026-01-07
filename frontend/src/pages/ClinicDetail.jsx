@@ -7,6 +7,9 @@ export default function ClinicDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const [pageLoading, setPageLoading] = useState(true);
+  const [bookingLoading, setBookingLoading] = useState(false);
+
   const [clinic, setClinic] = useState(null);
 
   const [name, setName] = useState("");
@@ -16,7 +19,6 @@ export default function ClinicDetail() {
   const [pdf, setPdf] = useState(null);
 
   const [bookedSlots, setBookedSlots] = useState([]);
-
 
   const [aiLoading, setAiLoading] = useState(false);
   const [aiData, setAiData] = useState(null);
@@ -29,37 +31,42 @@ export default function ClinicDetail() {
         setClinic(res.data);
       } catch {
         toast.error("Failed to load clinic");
+      } finally {
+        setPageLoading(false);
       }
     };
+
     fetchClinic();
   }, [id]);
 
+  /* ---------------- FETCH BOOKED SLOTS ---------------- */
   useEffect(() => {
-  const fetchBookedSlots = async () => {
-    try {
-      const res = await api.get(`/appointments/clinic/${id}`);
-      setBookedSlots(
-        res.data.map(a =>
-          new Date(a.slotTime).toISOString().slice(0, 16)
-        )
-      );
-    } catch (err) {
-      console.error("Failed to fetch booked slots");
-    }
-  };
+    const fetchBookedSlots = async () => {
+      try {
+        const res = await api.get(`/appointments/clinic/${id}`);
+        setBookedSlots(
+          res.data.map(a =>
+            new Date(a.slotTime).toISOString().slice(0, 16)
+          )
+        );
+      } catch {
+        console.error("Failed to fetch booked slots");
+      }
+    };
 
-  fetchBookedSlots();
-}, [id]);
-
-
+    fetchBookedSlots();
+  }, [id]);
 
   /* ---------------- AI INTAKE ---------------- */
-  const runAI = async (text) => {
-    if (!text || text.length < 10) return;
+  const runAI = async () => {
+    if (!symptoms || symptoms.length < 10) {
+      toast.error("Please describe symptoms clearly");
+      return;
+    }
 
     try {
       setAiLoading(true);
-      const res = await api.post("/ai/intake", { text });
+      const res = await api.post("/ai/intake", { text: symptoms });
       setAiData(res.data.data);
     } catch {
       toast.error("AI failed to analyze symptoms");
@@ -71,75 +78,61 @@ export default function ClinicDetail() {
 
   /* ---------------- BOOK APPOINTMENT ---------------- */
   const handleBook = async () => {
-        try {
-            if (!name || !email || !slotTime || !symptoms) {
-                toast.error("Please fill all required fields");
-                return;
-            }
-
-            if (!aiData) {
-                toast.error("AI analysis not ready yet");
-                return;
-            }
-
-            // Check for conflicting appointments within 10 minutes
-            const selectedTime = new Date(slotTime);
-            const tenMinutesMs = 10 * 60 * 1000;
-
-            try {
-                const appointmentsRes = await api.get(`/appointments/clinic/${id}`);
-                const existingAppointments = appointmentsRes.data || [];
-
-                for (const appointment of existingAppointments) {
-                    const appointmentTime = new Date(appointment.slotTime);
-                    const timeDifference = Math.abs(selectedTime - appointmentTime);
-
-                    if (timeDifference < tenMinutesMs) {
-                        toast.error("Timeslot not available - another appointment is within 10 minutes");
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.error("Error checking appointments:", err);
-                // Continue with booking if check fails (don't block booking)
-            }
-
-            const data = new FormData();
-
-            data.append("clinic", id);
-            data.append("slotTime", new Date(slotTime).toISOString());
-            data.append("symptoms", symptoms);
-            data.append("name", name);
-            data.append("email", email);
-
-            // ✅ AI META (THIS IS CRITICAL)
-            data.append(
-                "aiMeta",
-                JSON.stringify({
-                    symptoms: aiData.symptoms,
-                    urgency: aiData.urgency,
-                    preferredDateTime: aiData.preferredDateTime,
-                    source: "groq"
-                })
-            );
-
-            if (pdf) {
-                data.append("pdf", pdf);
-            }
-
-            await api.post("/appointments", data, {
-                headers: { "Content-Type": "multipart/form-data" }
-            });
-            console.log("AI DATA:", aiData);
-            toast.success("Appointment booked successfully");
-            navigate("/");
-        } catch (err) {
-            console.error("BOOK ERROR:", err);
-            toast.error(err.response?.data?.message || "Booking failed");
-        }
+    if (!name || !email || !slotTime || !symptoms) {
+      toast.error("Please fill all required fields");
+      return;
     }
 
-  if (!clinic) return <p className="p-6">Loading clinic...</p>;
+    if (!aiData) {
+      toast.error("Please analyze symptoms with AI first");
+      return;
+    }
+
+    try {
+      setBookingLoading(true);
+
+      const data = new FormData();
+      data.append("clinic", id);
+      data.append("slotTime", new Date(slotTime).toISOString());
+      data.append("symptoms", symptoms);
+      data.append("name", name);
+      data.append("email", email);
+      data.append(
+        "aiMeta",
+        JSON.stringify({
+          symptoms: aiData.symptoms,
+          urgency: aiData.urgency,
+          preferredDateTime: aiData.preferredDateTime,
+          source: "groq"
+        })
+      );
+
+      if (pdf) data.append("pdf", pdf);
+
+      await api.post("/appointments", data, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+
+      toast.success("Appointment booked successfully");
+      navigate("/");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Booking failed");
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  /* ---------------- PAGE LOADING ---------------- */
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mb-4"></div>
+        <p className="text-gray-600">Loading clinic details...</p>
+      </div>
+    );
+  }
+
+  if (!clinic) return null;
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -190,63 +183,58 @@ export default function ClinicDetail() {
           <input
             placeholder="Your Name"
             value={name}
+            disabled={bookingLoading}
             onChange={(e) => setName(e.target.value)}
-            className="border p-2 rounded-lg"
+            className="border p-2 rounded-lg disabled:bg-gray-100"
           />
 
           <input
             placeholder="Email"
             value={email}
+            disabled={bookingLoading}
             onChange={(e) => setEmail(e.target.value)}
-            className="border p-2 rounded-lg"
+            className="border p-2 rounded-lg disabled:bg-gray-100"
           />
 
           <input
             type="datetime-local"
-            value={slotTime || ""}
+            value={slotTime}
+            disabled={bookingLoading}
             onChange={(e) => {
-              const selected = e.target.value;
-
-              if (bookedSlots.includes(selected)) {
-              toast.error("This slot is already booked");
-              return;
+              if (bookedSlots.includes(e.target.value)) {
+                toast.error("This slot is already booked");
+                return;
               }
-
-              setSlotTime(selected);
+              setSlotTime(e.target.value);
             }}
-            className="border p-2 rounded-lg"
+            className="border p-2 rounded-lg disabled:bg-gray-100"
           />
         </div>
 
         <textarea
           placeholder="Describe your symptoms"
           value={symptoms}
+          disabled={bookingLoading}
           onChange={(e) => setSymptoms(e.target.value)}
-          className="border p-2 rounded-lg w-full mt-4"
+          className="border p-2 rounded-lg w-full mt-4 disabled:bg-gray-100"
           rows={4}
         />
 
         <button
-          onClick={() => runAI(symptoms)}
-          disabled={aiLoading}
-          className="mt-3 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+          disabled={bookingLoading || aiLoading}
+          onClick={handleBook}
+          className="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
         >
-          {aiLoading ? "Analyzing..." : "Analyze with AI"}
+          {bookingLoading ? "Booking..." : "Book Appointment"}
         </button>
+
 
         {aiData && (
           <div className="mt-4 bg-purple-50 border border-purple-200 p-4 rounded-lg">
-            <p>
-              <b>AI Symptoms:</b> {aiData.symptoms}
-            </p>
-            <p>
-              <b>Urgency:</b> {aiData.urgency}
-            </p>
+            <p><b>AI Symptoms:</b> {aiData.symptoms}</p>
+            <p><b>Urgency:</b> {aiData.urgency}</p>
             {aiData.preferredDateTime && (
-              <p>
-                <b>Suggested Time:</b>{" "}
-                {aiData.preferredDateTime}
-              </p>
+              <p><b>Suggested Time:</b> {aiData.preferredDateTime}</p>
             )}
           </div>
         )}
@@ -254,16 +242,17 @@ export default function ClinicDetail() {
         <input
           type="file"
           accept="application/pdf"
+          disabled={bookingLoading}
           onChange={(e) => setPdf(e.target.files[0])}
           className="mt-4"
         />
 
         <button
-          disabled={aiLoading}
           onClick={handleBook}
-          className="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition"
+          disabled={bookingLoading}
+          className="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
         >
-          Book Appointment
+          {bookingLoading ? "Booking..." : "Book Appointment"}
         </button>
       </div>
     </div>

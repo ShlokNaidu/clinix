@@ -1,23 +1,48 @@
-console.log("API URL =", import.meta.env.VITE_API_URL);
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL
+  baseURL: import.meta.env.VITE_API_URL + "/api"
 });
 
-// 🔐 Attach token automatically
-api.interceptors.request.use((config) => {
-  const doctorToken = localStorage.getItem("doctorToken");
-  const patientToken = localStorage.getItem("patientToken");
+// 👇 this will be injected from App
+let setLoadingGlobal = null;
 
-  // Prefer doctor token if available
-  const token = doctorToken || patientToken;
+// 🔗 bind function
+export const bindGlobalLoader = (setLoading) => {
+  setLoadingGlobal = setLoading;
+};
 
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// REQUEST → SHOW LOADER
+api.interceptors.request.use(
+  (config) => {
+    if (setLoadingGlobal) setLoadingGlobal(true);
+
+    const doctorToken = localStorage.getItem("doctorToken");
+    const patientToken = localStorage.getItem("patientToken");
+    const token = doctorToken || patientToken;
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => {
+    if (setLoadingGlobal) setLoadingGlobal(false);
+    return Promise.reject(error);
   }
+);
 
-  return config;
-});
+// RESPONSE → HIDE LOADER
+api.interceptors.response.use(
+  (response) => {
+    if (setLoadingGlobal) setLoadingGlobal(false);
+    return response;
+  },
+  (error) => {
+    if (setLoadingGlobal) setLoadingGlobal(false);
+    return Promise.reject(error);
+  }
+);
 
 export default api;
