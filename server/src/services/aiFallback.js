@@ -1,7 +1,6 @@
 export const extractAppointmentInfoFallback = (text) => {
   const lower = text.toLowerCase();
 
-  // Basic urgency detection
   let urgency = "low";
 
   if (
@@ -22,7 +21,6 @@ export const extractAppointmentInfoFallback = (text) => {
     urgency = "medium";
   }
 
-  // Very simple datetime hint (optional)
   let preferredDateTime = null;
   if (lower.includes("today") || lower.includes("aaj")) {
     preferredDateTime = "today";

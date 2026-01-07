@@ -23,7 +23,7 @@ export default function ClinicDetail() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiData, setAiData] = useState(null);
 
-  /* ---------------- FETCH CLINIC ---------------- */
+  /* ================= FETCH CLINIC ================= */
   useEffect(() => {
     const fetchClinic = async () => {
       try {
@@ -39,7 +39,7 @@ export default function ClinicDetail() {
     fetchClinic();
   }, [id]);
 
-  /* ---------------- FETCH BOOKED SLOTS ---------------- */
+  /* ================= FETCH BOOKED SLOTS ================= */
   useEffect(() => {
     const fetchBookedSlots = async () => {
       try {
@@ -57,26 +57,35 @@ export default function ClinicDetail() {
     fetchBookedSlots();
   }, [id]);
 
-  /* ---------------- AI INTAKE ---------------- */
+  /* ================= AI ANALYZE ================= */
   const runAI = async () => {
-    if (!symptoms || symptoms.length < 10) {
+    if (!symptoms || symptoms.length < 5) {
       toast.error("Please describe symptoms clearly");
       return;
     }
 
     try {
       setAiLoading(true);
+
       const res = await api.post("/ai/intake", { text: symptoms });
+
       setAiData(res.data.data);
+      toast.success("Symptoms analyzed");
     } catch {
-      toast.error("AI failed to analyze symptoms");
-      setAiData(null);
+      toast.error("AI failed, using fallback");
+
+      // 👇 frontend-safe fallback (backend also has one)
+      setAiData({
+        symptoms,
+        urgency: "medium",
+        preferredDateTime: null
+      });
     } finally {
       setAiLoading(false);
     }
   };
 
-  /* ---------------- BOOK APPOINTMENT ---------------- */
+  /* ================= BOOK APPOINTMENT ================= */
   const handleBook = async () => {
     if (!name || !email || !slotTime || !symptoms) {
       toast.error("Please fill all required fields");
@@ -84,7 +93,7 @@ export default function ClinicDetail() {
     }
 
     if (!aiData) {
-      toast.error("Please analyze symptoms with AI first");
+      toast.error("Please analyze symptoms first");
       return;
     }
 
@@ -103,7 +112,7 @@ export default function ClinicDetail() {
           symptoms: aiData.symptoms,
           urgency: aiData.urgency,
           preferredDateTime: aiData.preferredDateTime,
-          source: "groq"
+          source: "ai+fallback"
         })
       );
 
@@ -122,7 +131,7 @@ export default function ClinicDetail() {
     }
   };
 
-  /* ---------------- PAGE LOADING ---------------- */
+  /* ================= PAGE LOADING ================= */
   if (pageLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
@@ -158,27 +167,19 @@ export default function ClinicDetail() {
                 className="w-40 h-40 object-cover rounded-xl"
               />
             ))}
-
           </div>
         )}
 
+        <p className="text-gray-700"><b>Doctor:</b> {clinic.doctor?.name}</p>
+        <p className="text-gray-700"><b>Specialization:</b> {clinic.specialization}</p>
         <p className="text-gray-700">
-          <b>Doctor:</b> {clinic.doctor?.name}
-        </p>
-        <p className="text-gray-700">
-          <b>Specialization:</b> {clinic.specialization}
-        </p>
-        <p className="text-gray-700">
-          <b>Working Hours:</b> {clinic.workingHours?.start} –{" "}
-          {clinic.workingHours?.end}
+          <b>Working Hours:</b> {clinic.workingHours?.start} – {clinic.workingHours?.end}
         </p>
       </div>
 
       {/* BOOK APPOINTMENT */}
       <div className="bg-white rounded-2xl shadow-md p-6">
-        <h3 className="text-xl font-semibold mb-4">
-          Book Appointment
-        </h3>
+        <h3 className="text-xl font-semibold mb-4">Book Appointment</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
@@ -186,7 +187,7 @@ export default function ClinicDetail() {
             value={name}
             disabled={bookingLoading}
             onChange={(e) => setName(e.target.value)}
-            className="border p-2 rounded-lg disabled:bg-gray-100"
+            className="border p-2 rounded-lg"
           />
 
           <input
@@ -194,7 +195,7 @@ export default function ClinicDetail() {
             value={email}
             disabled={bookingLoading}
             onChange={(e) => setEmail(e.target.value)}
-            className="border p-2 rounded-lg disabled:bg-gray-100"
+            className="border p-2 rounded-lg"
           />
 
           <input
@@ -208,7 +209,7 @@ export default function ClinicDetail() {
               }
               setSlotTime(e.target.value);
             }}
-            className="border p-2 rounded-lg disabled:bg-gray-100"
+            className="border p-2 rounded-lg"
           />
         </div>
 
@@ -217,22 +218,22 @@ export default function ClinicDetail() {
           value={symptoms}
           disabled={bookingLoading}
           onChange={(e) => setSymptoms(e.target.value)}
-          className="border p-2 rounded-lg w-full mt-4 disabled:bg-gray-100"
+          className="border p-2 rounded-lg w-full mt-4"
           rows={4}
         />
 
+        {/* AI BUTTON */}
         <button
-          disabled={bookingLoading || aiLoading}
-          onClick={handleBook}
-          className="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
+          onClick={runAI}
+          disabled={aiLoading || bookingLoading}
+          className="mt-3 w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 disabled:opacity-60"
         >
-          {bookingLoading ? "Booking..." : "Book Appointment"}
+          {aiLoading ? "Analyzing..." : "Analyze Symptoms with AI"}
         </button>
 
-
+        {/* AI RESULT */}
         {aiData && (
           <div className="mt-4 bg-purple-50 border border-purple-200 p-4 rounded-lg">
-            <p><b>AI Symptoms:</b> {aiData.symptoms}</p>
             <p><b>Urgency:</b> {aiData.urgency}</p>
             {aiData.preferredDateTime && (
               <p><b>Suggested Time:</b> {aiData.preferredDateTime}</p>
@@ -248,9 +249,10 @@ export default function ClinicDetail() {
           className="mt-4"
         />
 
+        {/* SINGLE BOOK BUTTON */}
         <button
           onClick={handleBook}
-          disabled={bookingLoading}
+          disabled={bookingLoading || aiLoading}
           className="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
         >
           {bookingLoading ? "Booking..." : "Book Appointment"}

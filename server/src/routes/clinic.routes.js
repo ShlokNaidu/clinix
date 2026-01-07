@@ -14,19 +14,58 @@ const router = express.Router();
 router.post(
   "/",
   protect(["doctor"]),
-  upload.single("photo"),
+
+  // 🧠 Multer wrapper to catch errors properly
+  (req, res, next) => {
+    upload.single("photo")(req, res, (err) => {
+      if (err) {
+        // File too large
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({
+            message: "Image size must be less than 2MB"
+          });
+        }
+
+        // Invalid file type
+        if (err.message?.includes("Only image files")) {
+          return res.status(400).json({
+            message: "Only image files are allowed"
+          });
+        }
+
+        return res.status(400).json({
+          message: err.message || "Image upload failed"
+        });
+      }
+
+      next();
+    });
+  },
+
+  // 🚀 Actual controller
   async (req, res) => {
     try {
+      const {
+        name,
+        specialization,
+        address,
+        startTime,
+        endTime
+      } = req.body;
+
+      // 🛑 Basic validation
+      if (!name || !specialization || !address || !startTime || !endTime) {
+        return res.status(400).json({
+          message: "All fields except photo are required"
+        });
+      }
+
+      // 🔠 Normalize clinic name (prevents ABC vs abc duplicates)
+      const normalizedName = name.trim().toLowerCase();
+
       let photos = [];
 
-      // 🔍 DEBUG (keep for now)
-      console.log("UPLOAD DEBUG:", {
-        hasFile: !!req.file,
-        mimetype: req.file?.mimetype,
-        size: req.file?.size
-      });
-
-      // 📸 Upload image to Cloudinary
+      // 📸 Upload to Cloudinary if image exists
       if (req.file) {
         const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString(
           "base64"
@@ -42,12 +81,12 @@ router.post(
 
       // 🏥 Create clinic
       const clinic = await Clinic.create({
-        name: req.body.name,
-        specialization: req.body.specialization,
-        address: req.body.address,
+        name: normalizedName,
+        specialization,
+        address,
         workingHours: {
-          start: req.body.startTime,
-          end: req.body.endTime
+          start: startTime,
+          end: endTime
         },
         doctor: req.user.id,
         photos
@@ -56,9 +95,16 @@ router.post(
       res.status(201).json(clinic);
     } catch (err) {
       console.error("❌ CREATE CLINIC ERROR:", err);
+
+      // 🔁 Duplicate clinic name (MongoDB)
+      if (err.code === 11000) {
+        return res.status(409).json({
+          message: "A clinic with this name already exists"
+        });
+      }
+
       res.status(500).json({
-        message: "Failed to create clinic",
-        error: err.message
+        message: "Failed to create clinic"
       });
     }
   }

@@ -2,28 +2,29 @@ import mongoose from "mongoose";
 
 const clinicSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    specialization: { type: String, required: true },
-
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true // ✅ IMPORTANT
+    },
+    specialization: String,
+    address: String,
+    workingHours: {
+      start: String,
+      end: String
+    },
     doctor: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true
+      ref: "User"
     },
-
-    address: {
-      type: String,
-      required: true
-    },
-
-    workingHours: {
-      start: { type: String, required: true },
-      end: { type: String, required: true }
-    },
-
-    photos: [String] // store file paths / URLs
+    photos: [String]
   },
   { timestamps: true }
 );
 
+// 🔥 Ensure index exists
+clinicSchema.index({ name: 1 }, { unique: true });
+
 export default mongoose.model("Clinic", clinicSchema);
+
