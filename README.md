@@ -68,9 +68,9 @@ The system uses automation and AI responsibly — not to diagnose or treat — b
 -Describe health issues in natural language (Hindi/English)
 
 ### 🤖 AI Assistance 
--Converts natural language patient input into structured booking data
--Summarizes uploaded medical documents for faster doctor review
--Used only for workflow assistance — not medical advice
+- Converts natural language patient input into structured booking data
+- Summarizes uploaded medical documents for faster doctor review
+- Used only for workflow assistance — not medical advice
 
 ### 🔐 Security & Access Control
 - Role-based authentication (doctor-only routes protected)
