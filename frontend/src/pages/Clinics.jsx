@@ -137,7 +137,7 @@ function ClinicImage({ src }) {
       />
 
       <img
-        src={`https://clinix-5qt7.onrender.com${src}`}
+        src={src}
         alt="Clinic"
         onLoad={() => setLoaded(true)}
         className={`w-full h-48 object-cover transition duration-500 ${
