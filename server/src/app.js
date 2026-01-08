@@ -11,13 +11,12 @@ const app = express();
 /* ================= CORS CONFIG ================= */
 const allowedOrigins = [
   "https://clinix-frontend.web.app",
-  "http://localhost:5173" // for local dev
+  "http://localhost:5173"
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // allow requests with no origin (Postman, server-to-server)
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) {
@@ -32,8 +31,8 @@ app.use(
   })
 );
 
-// 🔥 IMPORTANT: handle preflight
-app.options("*", cors());
+// ✅ EXPRESS v5 SAFE PREFLIGHT HANDLER
+app.options("(.*)", cors());
 
 /* ================= MIDDLEWARE ================= */
 app.use(express.json());
@@ -49,4 +48,3 @@ app.get("/", (req, res) => {
 });
 
 export default app;
-                                                                                                            
