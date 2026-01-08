@@ -1,121 +1,170 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
-import ClinicMap from "../components/ClinicMap";
+
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+
+/* 🔧 Leaflet icon fix */
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png"
+});
 
 /* ---------------- SKELETON CARD ---------------- */
 function ClinicSkeleton() {
   return (
-    <div className="bg-white rounded-2xl shadow-md overflow-hidden animate-pulse h-[420px]">
-      <div className="w-full h-48 bg-gray-300"></div>
-
+    <div className="bg-white rounded-2xl shadow-md animate-pulse h-[420px]">
+      <div className="h-48 bg-gray-300" />
       <div className="p-5 space-y-3">
-        <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-        <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-        <div className="h-3 bg-gray-200 rounded w-1/3"></div>
-        <div className="mt-6 h-10 bg-gray-300 rounded"></div>
+        <div className="h-4 bg-gray-300 rounded w-3/4" />
+        <div className="h-3 bg-gray-200 rounded w-1/2" />
+        <div className="h-3 bg-gray-200 rounded w-2/3" />
+        <div className="h-10 bg-gray-300 rounded mt-6" />
       </div>
     </div>
   );
 }
 
 export default function Clinics() {
-  const [clinics, setClinics] = useState([]);
-  const [search, setSearch] = useState("");
-  const [specialization, setSpecialization] = useState("all");
-  const [loading, setLoading] = useState(true);
-
   const navigate = useNavigate();
 
-  /* ---------------- FETCH CLINICS ---------------- */
+  const [clinics, setClinics] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [search, setSearch] = useState("");
+  const [specialization, setSpecialization] = useState("");
+
+  const cardRefs = useRef({});
+
+  /* ================= FETCH ================= */
   useEffect(() => {
     const fetchClinics = async () => {
       try {
         const res = await api.get("/clinics");
         setClinics(res.data);
-      } catch (err) {
+      } catch {
         console.error("Failed to load clinics");
       } finally {
         setLoading(false);
       }
     };
+
     fetchClinics();
   }, []);
 
-  /* ---------------- SPECIALIZATION OPTIONS ---------------- */
-  const specializations = [
-    "all",
-    ...new Set(
-      clinics
-        .map((c) => c.specialization)
-        .filter(Boolean)
-    )
-  ];
+  /* ================= UNIQUE SPECIALIZATIONS ================= */
+  const specializations = useMemo(() => {
+    const set = new Set(clinics.map(c => c.specialization).filter(Boolean));
+    return Array.from(set);
+  }, [clinics]);
 
-  /* ---------------- FILTER LOGIC ---------------- */
-  const filteredClinics = clinics.filter((c) => {
-    const matchesSearch = c.name
+  /* ================= FILTER ================= */
+  const filteredClinics = clinics.filter(c => {
+    const nameMatch = c.name
       .toLowerCase()
       .includes(search.toLowerCase());
 
-    const matchesSpecialization =
-      specialization === "all" ||
-      c.specialization === specialization;
+    const specMatch = specialization
+      ? c.specialization === specialization
+      : true;
 
-    return matchesSearch && matchesSpecialization;
+    return nameMatch && specMatch;
   });
 
-  return (
-    <div className="min-h-screen bg-gray-100 px-6 py-8 space-y-6">
-      {/* HEADER */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <h2 className="text-3xl font-bold">Available Clinics</h2>
+  /* ================= MAP CENTER ================= */
+  const mapCenter = filteredClinics[0]?.location
+    ? [filteredClinics[0].location.lat, filteredClinics[0].location.lng]
+    : [22.7196, 75.8577]; // Indore fallback
 
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          {/* SEARCH */}
-          <input
-            type="text"
-            placeholder="Search clinic name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
+  return (
+    <div className="min-h-screen bg-gray-100 px-6 py-8 space-y-8">
+      {/* ================= MAP ================= */}
+      <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+        <MapContainer
+          center={mapCenter}
+          zoom={13}
+          style={{ height: "350px", width: "100%" }}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {/* SPECIALIZATION DROPDOWN */}
-          <select
-            value={specialization}
-            onChange={(e) => setSpecialization(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
-          >
-            {specializations.map((s) => (
-              <option key={s} value={s}>
-                {s === "all" ? "All Specializations" : s}
-              </option>
-            ))}
-          </select>
-        </div>
+          {filteredClinics.map(c => (
+            c.location && (
+              <Marker
+                key={c._id}
+                position={[c.location.lat, c.location.lng]}
+                eventHandlers={{
+                  click: () => {
+                    const el = cardRefs.current[c._id];
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      el.classList.add("ring-2", "ring-blue-500");
+                      setTimeout(() => {
+                        el.classList.remove("ring-2", "ring-blue-500");
+                      }, 1500);
+                    }
+                  }
+                }}
+              >
+                <Popup>
+                  <b>{c.name}</b>
+                  <br />
+                  {c.specialization}
+                </Popup>
+              </Marker>
+            )
+          ))}
+        </MapContainer>
       </div>
 
-      {/* MAP */}
-      {!loading && (
-        <ClinicMap clinics={filteredClinics} />
-      )}
+      {/* ================= FILTER BAR ================= */}
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <h2 className="text-3xl font-bold flex-1">
+          Available Clinics
+        </h2>
 
-      {/* GRID */}
+        <input
+          placeholder="Search clinic name..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full sm:w-64 px-4 py-2 border rounded-lg"
+        />
+
+        <select
+          value={specialization}
+          onChange={(e) => setSpecialization(e.target.value)}
+          className="w-full sm:w-56 px-4 py-2 border rounded-lg"
+        >
+          <option value="">All Specializations</option>
+          {specializations.map(spec => (
+            <option key={spec} value={spec}>
+              {spec}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* ================= GRID ================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-        {/* SKELETONS */}
         {loading &&
           Array.from({ length: 6 }).map((_, i) => (
             <ClinicSkeleton key={i} />
           ))}
 
-        {/* REAL DATA */}
         {!loading &&
-          filteredClinics.map((c) => (
+          filteredClinics.map(c => (
             <div
               key={c._id}
-              className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-lg transition flex flex-col h-[420px]"
+              ref={(el) => (cardRefs.current[c._id] = el)}
+              className="bg-white rounded-2xl shadow-md hover:shadow-lg transition flex flex-col h-[420px]"
             >
               <ClinicImage src={c.photos?.[0]} />
 
@@ -138,7 +187,7 @@ export default function Clinics() {
 
                 <button
                   onClick={() => navigate(`/clinics/${c._id}`)}
-                  className="mt-auto w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+                  className="mt-auto w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
                 >
                   View Clinic
                 </button>
@@ -147,9 +196,8 @@ export default function Clinics() {
           ))}
       </div>
 
-      {/* EMPTY STATE */}
       {!loading && filteredClinics.length === 0 && (
-        <p className="text-center text-gray-500 mt-12">
+        <p className="text-center text-gray-500">
           No clinics found
         </p>
       )}
@@ -157,23 +205,22 @@ export default function Clinics() {
   );
 }
 
-/* ---------------- IMAGE WITH BLUR ---------------- */
+/* ================= IMAGE WITH BLUR ================= */
 function ClinicImage({ src }) {
   const [loaded, setLoaded] = useState(false);
 
   if (!src) {
     return (
-      <div className="w-full h-48 bg-gray-300 flex items-center justify-center text-gray-500">
+      <div className="h-48 bg-gray-300 flex items-center justify-center">
         No Image
       </div>
     );
   }
 
   return (
-    <div className="relative w-full h-48 overflow-hidden">
-      {/* BLUR PLACEHOLDER */}
+    <div className="relative h-48 overflow-hidden">
       <div
-        className={`absolute inset-0 bg-gray-300 transition-opacity duration-500 ${
+        className={`absolute inset-0 bg-gray-300 transition-opacity ${
           loaded ? "opacity-0" : "opacity-100"
         }`}
       />
@@ -182,8 +229,8 @@ function ClinicImage({ src }) {
         src={src}
         alt="Clinic"
         onLoad={() => setLoaded(true)}
-        className={`w-full h-48 object-cover transition duration-500 ${
-          loaded ? "blur-0 scale-100" : "blur-md scale-105"
+        className={`w-full h-48 object-cover transition ${
+          loaded ? "blur-0" : "blur-md scale-105"
         }`}
       />
     </div>
