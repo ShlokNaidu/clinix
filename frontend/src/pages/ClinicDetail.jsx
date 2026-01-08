@@ -15,13 +15,16 @@ export default function ClinicDetail() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [slotTime, setSlotTime] = useState("");
-  const [symptoms, setSymptoms] = useState("");
-  const [pdf, setPdf] = useState(null);
 
+  const [rawSymptoms, setRawSymptoms] = useState("");
+  const [aiSummary, setAiSummary] = useState("");
+  const [urgency, setUrgency] = useState("low");
+
+  const [pdf, setPdf] = useState(null);
   const [bookedSlots, setBookedSlots] = useState([]);
 
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiData, setAiData] = useState(null);
+  const [aiDone, setAiDone] = useState(false);
 
   /* ================= FETCH CLINIC ================= */
   useEffect(() => {
@@ -35,7 +38,6 @@ export default function ClinicDetail() {
         setPageLoading(false);
       }
     };
-
     fetchClinic();
   }, [id]);
 
@@ -50,16 +52,15 @@ export default function ClinicDetail() {
           )
         );
       } catch {
-        console.error("Failed to fetch booked slots");
+        console.warn("Failed to fetch booked slots");
       }
     };
-
     fetchBookedSlots();
   }, [id]);
 
   /* ================= AI ANALYZE ================= */
   const runAI = async () => {
-    if (!symptoms || symptoms.length < 5) {
+    if (!rawSymptoms || rawSymptoms.length < 5) {
       toast.error("Please describe symptoms clearly");
       return;
     }
@@ -67,19 +68,24 @@ export default function ClinicDetail() {
     try {
       setAiLoading(true);
 
-      const res = await api.post("/ai/intake", { text: symptoms });
+      const res = await api.post("/ai/intake", {
+        text: rawSymptoms
+      });
 
-      setAiData(res.data.data);
+      const data = res.data.data;
+
+      setAiSummary(data.symptoms);
+      setUrgency(data.urgency);
+      setAiDone(true);
+
       toast.success("Symptoms analyzed");
     } catch {
-      toast.error("AI failed, using fallback");
+      // frontend fallback (extra safety)
+      setAiSummary(rawSymptoms);
+      setUrgency("medium");
+      setAiDone(true);
 
-      // 👇 frontend-safe fallback (backend also has one)
-      setAiData({
-        symptoms,
-        urgency: "medium",
-        preferredDateTime: null
-      });
+      toast("AI unavailable, using manual summary", { icon: "⚠️" });
     } finally {
       setAiLoading(false);
     }
@@ -87,12 +93,12 @@ export default function ClinicDetail() {
 
   /* ================= BOOK APPOINTMENT ================= */
   const handleBook = async () => {
-    if (!name || !email || !slotTime || !symptoms) {
+    if (!name || !email || !slotTime || !rawSymptoms) {
       toast.error("Please fill all required fields");
       return;
     }
 
-    if (!aiData) {
+    if (!aiDone) {
       toast.error("Please analyze symptoms first");
       return;
     }
@@ -103,15 +109,14 @@ export default function ClinicDetail() {
       const data = new FormData();
       data.append("clinic", id);
       data.append("slotTime", new Date(slotTime).toISOString());
-      data.append("symptoms", symptoms);
       data.append("name", name);
       data.append("email", email);
+      data.append("symptoms", rawSymptoms);
       data.append(
         "aiMeta",
         JSON.stringify({
-          symptoms: aiData.symptoms,
-          urgency: aiData.urgency,
-          preferredDateTime: aiData.preferredDateTime,
+          summary: aiSummary,
+          urgency,
           source: "ai+fallback"
         })
       );
@@ -131,12 +136,11 @@ export default function ClinicDetail() {
     }
   };
 
-  /* ================= PAGE LOADING ================= */
+  /* ================= LOADING ================= */
   if (pageLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mb-4"></div>
-        <p className="text-gray-600">Loading clinic details...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
       </div>
     );
   }
@@ -145,116 +149,52 @@ export default function ClinicDetail() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      {/* BACK */}
-      <button
-        onClick={() => navigate(-1)}
-        className="mb-4 text-blue-600 hover:underline"
-      >
+      <button onClick={() => navigate(-1)} className="mb-4 text-blue-600">
         ← Back
       </button>
 
       {/* CLINIC INFO */}
-      <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
-        <h2 className="text-2xl font-bold mb-2">{clinic.name}</h2>
-
-        {clinic.photos?.length > 0 && (
-          <div className="flex gap-4 overflow-x-auto mb-4">
-            {clinic.photos.map((img, i) => (
-              <img
-                key={i}
-                src={img}
-                alt="Clinic"
-                className="w-40 h-40 object-cover rounded-xl"
-              />
-            ))}
-          </div>
-        )}
-
-        <p className="text-gray-700"><b>Doctor:</b> {clinic.doctor?.name}</p>
-        <p className="text-gray-700"><b>Specialization:</b> {clinic.specialization}</p>
-        <p className="text-gray-700">
-          <b>Working Hours:</b> {clinic.workingHours?.start} – {clinic.workingHours?.end}
-        </p>
+      <div className="bg-white rounded-xl p-6 mb-6">
+        <h2 className="text-2xl font-bold">{clinic.name}</h2>
+        <p><b>Doctor:</b> {clinic.doctor?.name}</p>
+        <p><b>Specialization:</b> {clinic.specialization}</p>
+        <p><b>Working Hours:</b> {clinic.workingHours?.start} – {clinic.workingHours?.end}</p>
       </div>
 
-      {/* BOOK APPOINTMENT */}
-      <div className="bg-white rounded-2xl shadow-md p-6">
-        <h3 className="text-xl font-semibold mb-4">Book Appointment</h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input
-            placeholder="Your Name"
-            value={name}
-            disabled={bookingLoading}
-            onChange={(e) => setName(e.target.value)}
-            className="border p-2 rounded-lg"
-          />
-
-          <input
-            placeholder="Email"
-            value={email}
-            disabled={bookingLoading}
-            onChange={(e) => setEmail(e.target.value)}
-            className="border p-2 rounded-lg"
-          />
-
-          <input
-            type="datetime-local"
-            value={slotTime}
-            disabled={bookingLoading}
-            onChange={(e) => {
-              if (bookedSlots.includes(e.target.value)) {
-                toast.error("This slot is already booked");
-                return;
-              }
-              setSlotTime(e.target.value);
-            }}
-            className="border p-2 rounded-lg"
-          />
-        </div>
+      {/* BOOK */}
+      <div className="bg-white rounded-xl p-6">
+        <input placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} className="border p-2 w-full mb-3" />
+        <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="border p-2 w-full mb-3" />
+        <input type="datetime-local" value={slotTime} onChange={e => setSlotTime(e.target.value)} className="border p-2 w-full mb-3" />
 
         <textarea
-          placeholder="Describe your symptoms"
-          value={symptoms}
-          disabled={bookingLoading}
-          onChange={(e) => setSymptoms(e.target.value)}
-          className="border p-2 rounded-lg w-full mt-4"
+          placeholder="Describe symptoms (Hindi / Hinglish / English)"
+          value={rawSymptoms}
+          onChange={e => setRawSymptoms(e.target.value)}
+          className="border p-2 w-full mb-3"
           rows={4}
         />
 
-        {/* AI BUTTON */}
-        <button
-          onClick={runAI}
-          disabled={aiLoading || bookingLoading}
-          className="mt-3 w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 disabled:opacity-60"
-        >
-          {aiLoading ? "Analyzing..." : "Analyze Symptoms with AI"}
+        <button onClick={runAI} disabled={aiLoading} className="bg-purple-600 text-white py-2 w-full rounded mb-4">
+          {aiLoading ? "Analyzing..." : "Analyze Symptoms"}
         </button>
 
-        {/* AI RESULT */}
-        {aiData && (
-          <div className="mt-4 bg-purple-50 border border-purple-200 p-4 rounded-lg">
-            <p><b>Urgency:</b> {aiData.urgency}</p>
-            {aiData.preferredDateTime && (
-              <p><b>Suggested Time:</b> {aiData.preferredDateTime}</p>
-            )}
+        {aiDone && (
+          <div className="bg-purple-50 p-3 rounded mb-4">
+            <p className="text-sm font-semibold mb-1">AI Summary (Editable)</p>
+            <textarea
+              value={aiSummary}
+              onChange={e => setAiSummary(e.target.value)}
+              className="border p-2 w-full"
+              rows={3}
+            />
+            <p className="text-sm mt-2"><b>Urgency:</b> {urgency}</p>
           </div>
         )}
 
-        <input
-          type="file"
-          accept="application/pdf"
-          disabled={bookingLoading}
-          onChange={(e) => setPdf(e.target.files[0])}
-          className="mt-4"
-        />
+        <input type="file" accept="application/pdf" onChange={e => setPdf(e.target.files[0])} className="mb-4" />
 
-        {/* SINGLE BOOK BUTTON */}
-        <button
-          onClick={handleBook}
-          disabled={bookingLoading || aiLoading}
-          className="mt-6 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-60"
-        >
+        <button onClick={handleBook} disabled={bookingLoading} className="bg-blue-600 text-white py-3 w-full rounded">
           {bookingLoading ? "Booking..." : "Book Appointment"}
         </button>
       </div>
