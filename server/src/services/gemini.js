@@ -1,7 +1,6 @@
 import axios from "axios";
 
 export const extractAppointmentInfoGemini = async (text) => {
-  // 🔴 HARD STOP if Gemini is disabled
   if (
     process.env.GEMINI_DISABLED === "true" ||
     !process.env.GEMINI_API_KEY
@@ -21,19 +20,26 @@ export const extractAppointmentInfoGemini = async (text) => {
           parts: [
             {
               text: `
-You are a medical appointment intake assistant.
+You are a medical appointment intake assistant for a clinic.
+
+Your responsibilities:
+- Understand symptoms written in English, Hindi, or Hinglish.
+- Rewrite them into SIMPLE, CLEAR medical English.
+- Do NOT diagnose.
+- Do NOT exaggerate.
+- The summary must be editable by the patient.
 
 Return ONLY valid JSON.
 No markdown. No explanation.
 
 Schema:
 {
-  "symptoms": string,
-  "preferredDateTime": string | null,
-  "urgency": "low" | "medium" | "high"
+  "aiSummary": "1–2 sentence rewritten symptom summary",
+  "urgency": "low" | "medium" | "high",
+  "preferredDateTime": null
 }
 
-Text:
+Patient input:
 """${text}"""
 `
             }

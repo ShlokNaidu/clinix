@@ -23,16 +23,8 @@ export const extractAppointmentInfoFallback = (text) => {
     urgency = "medium";
   }
 
-  // 🧠 AI-like summarized symptom
-  const aiSummary = `
-Patient reports symptoms including: ${text}.
-Initial severity assessment: ${urgency}.
-Requires doctor evaluation.
-`.trim();
-
   return {
-    originalText: text,
-    aiSummary,
+    aiSummary: `Patient reports: ${text}.`,
     urgency,
     preferredDateTime: null
   };

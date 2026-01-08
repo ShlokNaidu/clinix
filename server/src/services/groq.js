@@ -21,22 +21,29 @@ export const extractAppointmentInfoGroq = async (text) => {
 
   const completion = await groq.chat.completions.create({
     model: "openai/gpt-oss-120b",
-    // openai/gpt-oss-120b
+    temperature: 0.2,
 
     messages: [
       {
         role: "system",
         content: `
-You are a medical appointment intake assistant.
+You are a medical appointment intake assistant for a clinic.
+
+Your responsibilities:
+- Understand symptoms written in English, Hindi, or Hinglish.
+- Rewrite them into SIMPLE, CLEAR medical English.
+- Do NOT diagnose.
+- Do NOT exaggerate.
+- The summary must be editable by the patient.
 
 Return ONLY valid JSON.
 No markdown. No explanation.
 
 Schema:
 {
-  "symptoms": string,
-  "preferredDateTime": string | null,
-  "urgency": "low" | "medium" | "high"
+  "aiSummary": "1–2 sentence rewritten symptom summary",
+  "urgency": "low" | "medium" | "high",
+  "preferredDateTime": null
 }
 `
       },
@@ -44,8 +51,7 @@ Schema:
         role: "user",
         content: text
       }
-    ],
-    temperature: 0.2
+    ]
   });
 
   const raw = completion.choices[0].message.content;

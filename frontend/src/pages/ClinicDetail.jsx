@@ -3,6 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 
+const getGoogleMapsLink = (address) => {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+};
+
 export default function ClinicDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -116,6 +120,15 @@ export default function ClinicDetail() {
       toast.success("Appointment booked successfully", {
         id: "booking",
       });
+
+      // ✅ OPTIONAL: auto-open maps after booking
+      setTimeout(() => {
+        window.open(
+          getGoogleMapsLink(clinic.address),
+          "_blank"
+        );
+      }, 800);
+
       navigate("/");
     } catch (err) {
       toast.error(
@@ -161,6 +174,18 @@ export default function ClinicDetail() {
           <b>Working Hours:</b>{" "}
           {clinic.workingHours?.start} – {clinic.workingHours?.end}
         </p>
+
+        {/* 📍 MAP BUTTON */}
+        {clinic.address && (
+          <a
+            href={getGoogleMapsLink(clinic.address)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+          >
+            📍 Open Clinic Location
+          </a>
+        )}
       </div>
 
       {/* BOOKING */}
