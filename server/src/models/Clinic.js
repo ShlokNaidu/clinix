@@ -6,7 +6,7 @@ const clinicSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      unique: true // ✅ IMPORTANT
+      unique: true // ✅ ONLY index needed
     },
     specialization: String,
     address: String,
@@ -23,8 +23,4 @@ const clinicSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// 🔥 Ensure index exists
-clinicSchema.index({ name: 1 }, { unique: true });
-
 export default mongoose.model("Clinic", clinicSchema);
-
