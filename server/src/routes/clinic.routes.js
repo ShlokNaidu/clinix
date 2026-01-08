@@ -19,14 +19,12 @@ router.post(
   (req, res, next) => {
     upload.single("photo")(req, res, (err) => {
       if (err) {
-        // File too large
         if (err.code === "LIMIT_FILE_SIZE") {
           return res.status(400).json({
             message: "Image size must be less than 2MB"
           });
         }
 
-        // Invalid file type
         if (err.message?.includes("Only image files")) {
           return res.status(400).json({
             message: "Only image files are allowed"
@@ -42,7 +40,7 @@ router.post(
     });
   },
 
-  // 🚀 Actual controller
+  // 🚀 Controller
   async (req, res) => {
     try {
       const {
@@ -50,22 +48,22 @@ router.post(
         specialization,
         address,
         startTime,
-        endTime
+        endTime,
+        location // 👈 comes from frontend
       } = req.body;
 
-      // 🛑 Basic validation
+      // 🛑 Validation
       if (!name || !specialization || !address || !startTime || !endTime) {
         return res.status(400).json({
           message: "All fields except photo are required"
         });
       }
 
-      // 🔠 Normalize clinic name (prevents ABC vs abc duplicates)
       const normalizedName = name.trim().toLowerCase();
 
       let photos = [];
 
-      // 📸 Upload to Cloudinary if image exists
+      // 📸 Cloudinary upload
       if (req.file) {
         const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString(
           "base64"
@@ -79,6 +77,18 @@ router.post(
         photos.push(result.secure_url);
       }
 
+      // 📍 Parse location safely
+      let parsedLocation = undefined;
+      if (location) {
+        try {
+          parsedLocation = JSON.parse(location);
+        } catch {
+          return res.status(400).json({
+            message: "Invalid location format"
+          });
+        }
+      }
+
       // 🏥 Create clinic
       const clinic = await Clinic.create({
         name: normalizedName,
@@ -89,14 +99,14 @@ router.post(
           end: endTime
         },
         doctor: req.user.id,
-        photos
+        photos,
+        location: parsedLocation
       });
 
       res.status(201).json(clinic);
     } catch (err) {
       console.error("❌ CREATE CLINIC ERROR:", err);
 
-      // 🔁 Duplicate clinic name (MongoDB)
       if (err.code === 11000) {
         return res.status(409).json({
           message: "A clinic with this name already exists"

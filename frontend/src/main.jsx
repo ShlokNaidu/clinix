@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
-
+import "leaflet/dist/leaflet.css";  // leaflet for map - import
 import { LoadingProvider } from "./context/LoadingContext";
 import GlobalLoader from "./components/GlobalLoader";
 import { bindGlobalLoader } from "./api/axios";
