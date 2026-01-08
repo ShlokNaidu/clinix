@@ -7,85 +7,78 @@ export default function ClinicDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const [clinic, setClinic] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
-
-  const [clinic, setClinic] = useState(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [slotTime, setSlotTime] = useState("");
+  const [symptoms, setSymptoms] = useState("");
 
-  const [rawSymptoms, setRawSymptoms] = useState("");
   const [aiSummary, setAiSummary] = useState("");
-  const [urgency, setUrgency] = useState("low");
+  const [urgency, setUrgency] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const [pdf, setPdf] = useState(null);
   const [bookedSlots, setBookedSlots] = useState([]);
 
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiDone, setAiDone] = useState(false);
-
   /* ================= FETCH CLINIC ================= */
   useEffect(() => {
-    const fetchClinic = async () => {
+    const loadClinic = async () => {
       try {
         const res = await api.get(`/clinics/${id}`);
         setClinic(res.data);
       } catch {
-        toast.error("Failed to load clinic");
+        toast.error("Failed to load clinic details");
       } finally {
         setPageLoading(false);
       }
     };
-    fetchClinic();
+    loadClinic();
   }, [id]);
 
   /* ================= FETCH BOOKED SLOTS ================= */
   useEffect(() => {
-    const fetchBookedSlots = async () => {
-      try {
-        const res = await api.get(`/appointments/clinic/${id}`);
+    api
+      .get(`/appointments/clinic/${id}`)
+      .then((res) => {
         setBookedSlots(
-          res.data.map(a =>
+          res.data.map((a) =>
             new Date(a.slotTime).toISOString().slice(0, 16)
           )
         );
-      } catch {
-        console.warn("Failed to fetch booked slots");
-      }
-    };
-    fetchBookedSlots();
+      })
+      .catch(() => {});
   }, [id]);
 
   /* ================= AI ANALYZE ================= */
   const runAI = async () => {
-    if (!rawSymptoms || rawSymptoms.length < 5) {
-      toast.error("Please describe symptoms clearly");
+    if (symptoms.trim().length < 5) {
+      toast.error("Please describe your symptoms clearly");
       return;
     }
 
     try {
       setAiLoading(true);
+      toast.loading("Analyzing symptoms…", { id: "ai" });
 
-      const res = await api.post("/ai/intake", {
-        text: rawSymptoms
+      const res = await api.post("/ai/intake", { text: symptoms });
+
+      setAiSummary(res.data.data.aiSummary || res.data.data.symptoms);
+      setUrgency(res.data.data.urgency || "medium");
+
+      toast.success("Symptoms analyzed. Please review below.", {
+        id: "ai",
       });
-
-      const data = res.data.data;
-
-      setAiSummary(data.symptoms);
-      setUrgency(data.urgency);
-      setAiDone(true);
-
-      toast.success("Symptoms analyzed");
     } catch {
-      // frontend fallback (extra safety)
-      setAiSummary(rawSymptoms);
+      setAiSummary(symptoms);
       setUrgency("medium");
-      setAiDone(true);
 
-      toast("AI unavailable, using manual summary", { icon: "⚠️" });
+      toast.error(
+        "We couldn't fully analyze your symptoms. Please review manually.",
+        { id: "ai" }
+      );
     } finally {
       setAiLoading(false);
     }
@@ -93,54 +86,53 @@ export default function ClinicDetail() {
 
   /* ================= BOOK APPOINTMENT ================= */
   const handleBook = async () => {
-    if (!name || !email || !slotTime || !rawSymptoms) {
+    if (!name || !email || !slotTime || !aiSummary) {
       toast.error("Please fill all required fields");
-      return;
-    }
-
-    if (!aiDone) {
-      toast.error("Please analyze symptoms first");
       return;
     }
 
     try {
       setBookingLoading(true);
+      toast.loading("Booking your appointment…", { id: "booking" });
 
       const data = new FormData();
       data.append("clinic", id);
       data.append("slotTime", new Date(slotTime).toISOString());
       data.append("name", name);
       data.append("email", email);
-      data.append("symptoms", rawSymptoms);
+      data.append("symptoms", symptoms);
       data.append(
         "aiMeta",
         JSON.stringify({
-          summary: aiSummary,
+          aiSummary,
           urgency,
-          source: "ai+fallback"
         })
       );
 
       if (pdf) data.append("pdf", pdf);
 
-      await api.post("/appointments", data, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
+      await api.post("/appointments", data);
 
-      toast.success("Appointment booked successfully");
+      toast.success("Appointment booked successfully", {
+        id: "booking",
+      });
       navigate("/");
     } catch (err) {
-      toast.error(err.response?.data?.message || "Booking failed");
+      toast.error(
+        err.response?.data?.message ||
+          "Unable to book appointment. Please try again.",
+        { id: "booking" }
+      );
     } finally {
       setBookingLoading(false);
     }
   };
 
-  /* ================= LOADING ================= */
+  /* ================= UI ================= */
   if (pageLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading...
+        Loading clinic…
       </div>
     );
   }
@@ -149,53 +141,108 @@ export default function ClinicDetail() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <button onClick={() => navigate(-1)} className="mb-4 text-blue-600">
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-4 text-blue-600 hover:underline"
+      >
         ← Back
       </button>
 
       {/* CLINIC INFO */}
-      <div className="bg-white rounded-xl p-6 mb-6">
+      <div className="bg-white p-6 rounded-xl shadow mb-6">
         <h2 className="text-2xl font-bold">{clinic.name}</h2>
-        <p><b>Doctor:</b> {clinic.doctor?.name}</p>
-        <p><b>Specialization:</b> {clinic.specialization}</p>
-        <p><b>Working Hours:</b> {clinic.workingHours?.start} – {clinic.workingHours?.end}</p>
+        <p className="text-gray-600">
+          <b>Doctor:</b> {clinic.doctor?.name}
+        </p>
+        <p className="text-gray-600">
+          <b>Specialization:</b> {clinic.specialization}
+        </p>
+        <p className="text-gray-600">
+          <b>Working Hours:</b>{" "}
+          {clinic.workingHours?.start} – {clinic.workingHours?.end}
+        </p>
       </div>
 
-      {/* BOOK */}
-      <div className="bg-white rounded-xl p-6">
-        <input placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} className="border p-2 w-full mb-3" />
-        <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="border p-2 w-full mb-3" />
-        <input type="datetime-local" value={slotTime} onChange={e => setSlotTime(e.target.value)} className="border p-2 w-full mb-3" />
+      {/* BOOKING */}
+      <div className="bg-white p-6 rounded-xl shadow">
+        <h3 className="text-xl font-semibold mb-4">Book Appointment</h3>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <input
+            placeholder="Your Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="border p-2 rounded"
+          />
+
+          <input
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="border p-2 rounded"
+          />
+
+          <input
+            type="datetime-local"
+            value={slotTime}
+            onChange={(e) => {
+              if (bookedSlots.includes(e.target.value)) {
+                toast.error(
+                  "This time slot is already booked. Please choose another time."
+                );
+                return;
+              }
+              setSlotTime(e.target.value);
+            }}
+            className="border p-2 rounded"
+          />
+        </div>
 
         <textarea
-          placeholder="Describe symptoms (Hindi / Hinglish / English)"
-          value={rawSymptoms}
-          onChange={e => setRawSymptoms(e.target.value)}
-          className="border p-2 w-full mb-3"
+          className="border p-2 rounded w-full mt-4"
           rows={4}
+          placeholder="Describe your symptoms (Hindi / Hinglish / English)"
+          value={symptoms}
+          onChange={(e) => setSymptoms(e.target.value)}
         />
 
-        <button onClick={runAI} disabled={aiLoading} className="bg-purple-600 text-white py-2 w-full rounded mb-4">
-          {aiLoading ? "Analyzing..." : "Analyze Symptoms"}
+        <button
+          onClick={runAI}
+          disabled={aiLoading}
+          className="mt-3 w-full bg-purple-600 text-white py-2 rounded"
+        >
+          {aiLoading ? "Analyzing…" : "Analyze Symptoms with AI"}
         </button>
 
-        {aiDone && (
-          <div className="bg-purple-50 p-3 rounded mb-4">
-            <p className="text-sm font-semibold mb-1">AI Summary (Editable)</p>
+        {aiSummary && (
+          <div className="mt-4 bg-purple-50 p-4 rounded border">
+            <p className="font-semibold mb-1">
+              AI Summary (you can edit):
+            </p>
             <textarea
+              className="border p-2 rounded w-full"
               value={aiSummary}
-              onChange={e => setAiSummary(e.target.value)}
-              className="border p-2 w-full"
-              rows={3}
+              onChange={(e) => setAiSummary(e.target.value)}
             />
-            <p className="text-sm mt-2"><b>Urgency:</b> {urgency}</p>
+            <p className="text-sm mt-2">
+              Urgency: <b>{urgency}</b>
+            </p>
           </div>
         )}
 
-        <input type="file" accept="application/pdf" onChange={e => setPdf(e.target.files[0])} className="mb-4" />
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={(e) => setPdf(e.target.files[0])}
+          className="mt-4"
+        />
 
-        <button onClick={handleBook} disabled={bookingLoading} className="bg-blue-600 text-white py-3 w-full rounded">
-          {bookingLoading ? "Booking..." : "Book Appointment"}
+        <button
+          onClick={handleBook}
+          disabled={bookingLoading}
+          className="mt-6 w-full bg-blue-600 text-white py-3 rounded"
+        >
+          {bookingLoading ? "Booking…" : "Book Appointment"}
         </button>
       </div>
     </div>

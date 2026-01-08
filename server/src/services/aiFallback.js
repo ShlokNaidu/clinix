@@ -7,6 +7,7 @@ export const extractAppointmentInfoFallback = (text) => {
     lower.includes("urgent") ||
     lower.includes("emergency") ||
     lower.includes("bahut") ||
+    lower.includes("zyada") ||
     lower.includes("serious") ||
     lower.includes("severe")
   ) {
@@ -16,21 +17,23 @@ export const extractAppointmentInfoFallback = (text) => {
     lower.includes("bukhar") ||
     lower.includes("pain") ||
     lower.includes("dard") ||
-    lower.includes("headache")
+    lower.includes("headache") ||
+    lower.includes("pet dard")
   ) {
     urgency = "medium";
   }
 
-  let preferredDateTime = null;
-  if (lower.includes("today") || lower.includes("aaj")) {
-    preferredDateTime = "today";
-  } else if (lower.includes("tomorrow") || lower.includes("kal")) {
-    preferredDateTime = "tomorrow";
-  }
+  // 🧠 AI-like summarized symptom
+  const aiSummary = `
+Patient reports symptoms including: ${text}.
+Initial severity assessment: ${urgency}.
+Requires doctor evaluation.
+`.trim();
 
   return {
-    symptoms: text,
-    preferredDateTime,
-    urgency
+    originalText: text,
+    aiSummary,
+    urgency,
+    preferredDateTime: null
   };
 };

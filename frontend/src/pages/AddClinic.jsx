@@ -22,34 +22,27 @@ export default function AddClinic() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  /* ---------------- IMAGE HANDLER ---------------- */
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // ❌ size check (2MB)
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image must be less than 2MB");
+      toast.error("Image size must be less than 2 MB");
       e.target.value = "";
-      setPhoto(null);
-      setPreview(null);
       return;
     }
 
-    // ❌ type check
     if (!file.type.startsWith("image/")) {
-      toast.error("Only image files are allowed");
+      toast.error("Please upload a valid image file");
       e.target.value = "";
-      setPhoto(null);
-      setPreview(null);
       return;
     }
 
     setPhoto(file);
     setPreview(URL.createObjectURL(file));
+    toast.success("Image selected");
   };
 
-  /* ---------------- SUBMIT ---------------- */
   const handleSubmit = async () => {
     if (!form.name || !form.specialization || !form.address) {
       toast.error("Please fill all required fields");
@@ -58,133 +51,96 @@ export default function AddClinic() {
 
     try {
       setLoading(true);
+      toast.loading("Saving clinic…", { id: "clinic" });
 
       const data = new FormData();
       Object.entries(form).forEach(([k, v]) => data.append(k, v));
       if (photo) data.append("photo", photo);
 
-      await api.post("/clinics", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await api.post("/clinics", data);
 
-      toast.success("Clinic added successfully");
+      toast.success("Clinic added successfully", {
+        id: "clinic",
+      });
       navigate("/doctor/dashboard");
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to create clinic");
+      toast.error(
+        err.response?.data?.message ||
+          "Failed to add clinic. Please try again.",
+        { id: "clinic" }
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-md p-8">
-        {/* HEADER */}
-        <h2 className="text-2xl font-bold text-center mb-2">Add Clinic</h2>
-        <p className="text-center text-gray-500 mb-6">
-          Enter clinic details below
-        </p>
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="bg-white max-w-lg w-full p-8 rounded-xl shadow">
+        <h2 className="text-2xl font-bold text-center mb-6">
+          Add Clinic
+        </h2>
 
-        {/* CLINIC NAME */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            Clinic Name
-          </label>
+        <input
+          name="name"
+          placeholder="Clinic Name"
+          value={form.name}
+          onChange={handleChange}
+          className="border p-2 w-full mb-3 rounded"
+        />
+
+        <input
+          name="specialization"
+          placeholder="Specialization"
+          value={form.specialization}
+          onChange={handleChange}
+          className="border p-2 w-full mb-3 rounded"
+        />
+
+        <input
+          name="address"
+          placeholder="Address"
+          value={form.address}
+          onChange={handleChange}
+          className="border p-2 w-full mb-3 rounded"
+        />
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
           <input
-            name="name"
-            value={form.name}
+            type="time"
+            name="startTime"
             onChange={handleChange}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="border p-2 rounded"
           />
-        </div>
-
-        {/* SPECIALIZATION */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            Specialization
-          </label>
           <input
-            name="specialization"
-            value={form.specialization}
+            type="time"
+            name="endTime"
             onChange={handleChange}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="border p-2 rounded"
           />
         </div>
 
-        {/* ADDRESS */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            Address
-          </label>
-          <input
-            name="address"
-            value={form.address}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handlePhotoChange}
+          className="mb-3"
+        />
+
+        {preview && (
+          <img
+            src={preview}
+            alt="Preview"
+            className="h-40 w-full object-cover rounded mb-3"
           />
-        </div>
+        )}
 
-        {/* WORKING HOURS */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-600 mb-2">
-            Working Hours
-          </label>
-          <div className="grid grid-cols-2 gap-4">
-            <input
-              type="time"
-              name="startTime"
-              onChange={handleChange}
-              className="px-4 py-2 border rounded-lg"
-            />
-            <input
-              type="time"
-              name="endTime"
-              onChange={handleChange}
-              className="px-4 py-2 border rounded-lg"
-            />
-          </div>
-        </div>
-
-        {/* PHOTO */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            Clinic Photo (optional)
-          </label>
-
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handlePhotoChange}
-            className="w-full text-sm"
-          />
-
-          {/* PREVIEW */}
-          {preview && (
-            <div className="mt-3">
-              <p className="text-xs text-gray-500 mb-1">Preview:</p>
-              <img
-                src={preview}
-                alt="Preview"
-                className="w-full h-40 object-cover rounded-lg border"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* ACTIONS */}
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-60"
+          className="w-full bg-blue-600 text-white py-3 rounded"
         >
-          {loading ? "Saving..." : "Save Clinic"}
-        </button>
-
-        <button
-          onClick={() => navigate("/doctor/dashboard")}
-          className="block mx-auto mt-4 text-sm text-gray-500 hover:underline"
-        >
-          ← Back to Dashboard
+          {loading ? "Saving…" : "Save Clinic"}
         </button>
       </div>
     </div>
