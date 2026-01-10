@@ -100,6 +100,7 @@ The system uses automation and AI responsibly — not to diagnose or treat — b
 - Gemini and Groq
 - Google Maps API
 - Firebase & Render
+- Cloudinary
 
 ---
 
